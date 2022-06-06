@@ -1,0 +1,133 @@
+---
+title: "main"
+output: html_document
+date: '2022-06-06'
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+data <- read.csv('bike_sharing.csv')
+data <- data %>% 
+  mutate(count_cat = cut(
+    count, 
+    breaks=c(0, 200, 400, 600, 800, 1000),
+    labels=c("Sangat Sedikit", "Sedikit", "Sedang", "Banyak", "Sangat Banyak")))
+```
+
+```{r}
+library(lubridate)
+day <- day(dmy_hm(data$datetime))
+month <- month(dmy_hm(data$datetime))
+year <- year(dmy_hm(data$datetime))
+hour <- hour(dmy_hm(data$datetime))
+
+library(tibble)
+data <- add_column(data, day=day, .after="datetime")
+data <- add_column(data, month=month, .after="day")
+data <- add_column(data, year=year, .after="month")
+data <- add_column(data, hour=hour, .after="year")
+
+data$month <- as.factor(data$month)
+data$year <- as.factor(data$year)
+```
+
+```{r}
+data$season <- as.factor(data$season)
+levels(data$season)[c(1,2,3,4)] <- c("winter", "spring", "summer", "fall")
+
+data$weather <- as.factor(data$weather)
+levels(data$weather)[c(1, 2, 3, 4)] <- c("good", "normal", "bad", "very bad")
+
+data$holiday <- as.factor(data$holiday)
+#levels(data$holiday)[c(0, 1)] <- c("no", "yes")
+
+data$workingday <- as.factor(data$workingday)
+#levels(data$workingday)[c(0, 1)] <- c("no", "yes")
+```
+
+```{r}
+#korelasi kolom kategorikal dengan count_cat
+cat_columns = c("month", "season", "holiday", "workingday", "weather")
+
+#FIAINTRP
+cat_columns_pvalue = c()
+for(col in cat_columns){
+  chisq = chisq.test(data$count_cat, data[,col])
+  cat_columns_pvalue = append(cat_columns_pvalue, chisq[["p.value"]])
+}
+df_cat_columns_pvalue = data.frame(cat_columns, cat_columns_pvalue)
+df_cat_columns_pvalue
+```
+
+```{r}
+#korelasi kolom numerik dengan count_cat
+num_columns <- c("hour", "temp", "atemp", "humidity", "windspeed")
+for(col in num_columns){
+  print(summary(aov(data[,col] ~ data[,"count_cat"])))
+}
+```
+```{r}
+#plot kolom numerik dengan count_cat
+num_columns <- c("hour", "temp", "atemp", "humidity", "windspeed")
+
+for(col in num_columns){
+  plot <- ggplot(data, aes_string(x="count_cat", y=col))+
+    geom_boxplot()
+  
+  print(plot)
+}
+```
+```{r}
+cat_columns <- c("month", "season", "holiday", "workingday", "weather")
+
+for(col in cat_columns){
+  plot <- ggplot(data, aes_string(x=col, fill="count_cat"))+
+    geom_bar(position = "dodge")
+  print(plot)
+}
+
+```
+```{r}
+set.seed(7)
+
+normalize <- function(x){
+ (x-min(x))/(max(x)-min(x))
+}
+
+data_model <- data[c("day", "month", "year", "hour", "season", "holiday", "workingday", "weather", "temp", "atemp", "windspeed")]
+
+data_model_num <- data[append(num_columns, c("count_cat"))]
+data_model_num[,1:5] <- as.data.frame(lapply(data_model_num[,1:5],normalize))
+
+random <- sort(sample(1:nrow(data_model_num), 0.8*nrow(data_model_num),replace=F))
+train <- data_model_num[random,1:5]
+test <- data_model_num[-random,1:5]
+train.out <- data_model_num[random,6]
+test.out <- data_model_num[-random,6]
+nrow(train)
+nrow(test)
+```
+
+```{r}
+##Metode 1 - kNN
+library(class)
+set.seed(8)
+knn.pred <- knn(train, test, cl=train.out, k=10)
+#Confusion Matrix
+(tab <- table(knn.pred, test.out))
+#ACCURACY
+accuracy <- function(x){
+ sum(diag(x)/(sum(rowSums(x))))*100
+ }
+accuracy(tab)
+```
+
+
+
+
+
+
