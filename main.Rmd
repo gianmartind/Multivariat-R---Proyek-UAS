@@ -142,21 +142,19 @@ normalize <- function(x){
  (x-min(x))/(max(x)-min(x))
 }
 
-data_model <- data
+data_model <- subset(data, select=-c(datetime, count))
 
 #data_model_num <- data[append(num_columns, c("count_cat"))]
-data_model[num_columns] <- as.data.frame(lapply(data_model[num_columns], normalize))
+#data_model[num_columns] <- as.data.frame(lapply(data_model[num_columns], normalize))
 
 random <- sort(sample(1:nrow(data_model), 0.8*nrow(data_model),replace=F))
-train <- data_model[random,1:14]
-test <- data_model[-random,1:14]
-train.out <- data_model[random,15]
-test.out <- data_model[-random,15]
+train <- data_model[random,1:12]
+test <- data_model[-random,1:12]
+train.out <- data_model[random,13]
+test.out <- data_model[-random,13]
 nrow(train)
 nrow(test)
 ```
-
-
 ```{r}
 #ACCURACY
 accuracy <- function(x){
@@ -167,17 +165,38 @@ accuracy <- function(x){
 ```{r}
 ##Metode 1 - kNN
 library(class)
-set.seed(8)
-knn.pred <- knn(train, test, cl=train.out, k=10)
-#Confusion Matrix
-tab <- table(knn.pred, test.out)
+set.seed(12)
 
-accuracy(tab)
+accs <- list()
 
+for(i in 1:50){
+  knn.pred <- knn(train, test, cl=train.out, k=i)
+  #Confusion Matrix
+  tab <- table(knn.pred, test.out)
+  
+  accs <- append(accs, accuracy(tab))
+}
+plot(1:50, accs, type="o")
 ```
+
 ```{r}
-knn.pred
+##Metode 2 - LDA
+#Modeling dengan LDA
+library(MASS)
+train.lengkap <- cbind(train, train.out)
+colnames(train.lengkap)[13] <- c("count_cat")
+test.lengkap <- cbind(test, test.out)
+colnames(test.lengkap)[13] <- c("count_cat")
+lda <- lda(count_cat~., data = train.lengkap)
+lda
+plot(lda)
+lda.pred <- predict(lda, test.lengkap)
+names(lda.pred)
+(tab <- table(lda.pred$class, test.out))
+accuracy(tab)
 ```
+
+
 
 
 
