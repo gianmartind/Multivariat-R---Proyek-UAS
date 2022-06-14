@@ -11,12 +11,34 @@ library(ggplot2)
 
 ```{r}
 data <- read.csv('bike_sharing.csv')
+```
+
+```{r}
 data <- data %>% 
   mutate(count_cat = cut(
     count, 
     breaks=c(0, 200, 400, 600, 800, 1000),
     labels=c("Sangat Sedikit", "Sedikit", "Sedang", "Banyak", "Sangat Banyak")))
 ```
+
+```{r}
+library(ClusterR)
+library(cluster)
+
+set.seed(12)
+kmeans.cluster <- kmeans(data$count, centers=5)
+kmeans.cluster$cluster
+data$count_cat <- kmeans.cluster$cluster
+#data$count_cat <- as.factor(data$count_cat)
+```
+
+```{r}
+ggplot(data, aes(x=count_cat, y=count))+
+  geom_boxplot()
+
+levels(data$count_cat)[c(1,2,3,4,5)] <- c("Banyak", "Sedikit", "Sangat Sedikit", "Sedang", "Sangat Banyak")
+```
+
 
 ```{r}
 library(lubridate)
@@ -31,8 +53,8 @@ data <- add_column(data, month=month, .after="day")
 data <- add_column(data, year=year, .after="month")
 data <- add_column(data, hour=hour, .after="year")
 
-data$month <- as.factor(data$month)
-data$year <- as.factor(data$year)
+#data$month <- as.factor(data$month)
+#data$year <- as.factor(data$year)
 ```
 
 ```{r}
@@ -82,6 +104,18 @@ for(col in num_columns){
 }
 ```
 ```{r}
+#plot kolom numerik dengan count_cat
+num_columns <- c("hour", "temp", "atemp", "humidity", "windspeed")
+
+for(col in num_columns){
+  plot <- ggplot(data, aes_string(x=col, y="count"))+
+    geom_point()
+  
+  print(plot)
+}
+```
+
+```{r}
 cat_columns <- c("month", "season", "holiday", "workingday", "weather")
 
 for(col in cat_columns){
@@ -92,24 +126,42 @@ for(col in cat_columns){
 
 ```
 ```{r}
-set.seed(7)
+cat_columns <- c("month", "season", "holiday", "workingday", "weather")
+
+for(col in cat_columns){
+  plot <- ggplot(data, aes_string(x=col, y="count"))+
+    geom_boxplot()
+  print(plot)
+}
+
+```
+```{r}
+set.seed(12)
 
 normalize <- function(x){
  (x-min(x))/(max(x)-min(x))
 }
 
-data_model <- data[c("day", "month", "year", "hour", "season", "holiday", "workingday", "weather", "temp", "atemp", "windspeed")]
+data_model <- data
 
-data_model_num <- data[append(num_columns, c("count_cat"))]
-data_model_num[,1:5] <- as.data.frame(lapply(data_model_num[,1:5],normalize))
+#data_model_num <- data[append(num_columns, c("count_cat"))]
+data_model[num_columns] <- as.data.frame(lapply(data_model[num_columns], normalize))
 
-random <- sort(sample(1:nrow(data_model_num), 0.8*nrow(data_model_num),replace=F))
-train <- data_model_num[random,1:5]
-test <- data_model_num[-random,1:5]
-train.out <- data_model_num[random,6]
-test.out <- data_model_num[-random,6]
+random <- sort(sample(1:nrow(data_model), 0.8*nrow(data_model),replace=F))
+train <- data_model[random,1:14]
+test <- data_model[-random,1:14]
+train.out <- data_model[random,15]
+test.out <- data_model[-random,15]
 nrow(train)
 nrow(test)
+```
+
+
+```{r}
+#ACCURACY
+accuracy <- function(x){
+ sum(diag(x)/(sum(rowSums(x))))*100
+ }
 ```
 
 ```{r}
@@ -118,13 +170,15 @@ library(class)
 set.seed(8)
 knn.pred <- knn(train, test, cl=train.out, k=10)
 #Confusion Matrix
-(tab <- table(knn.pred, test.out))
-#ACCURACY
-accuracy <- function(x){
- sum(diag(x)/(sum(rowSums(x))))*100
- }
+tab <- table(knn.pred, test.out)
+
 accuracy(tab)
+
 ```
+```{r}
+knn.pred
+```
+
 
 
 
