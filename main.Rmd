@@ -33,7 +33,7 @@ data$count_cat <- kmeans.cluster$cluster
 ```
 
 ```{r}
-ggplot(data, aes(x=count_cat, y=count))+
+ggplot(data, aes(x=as.factor(count_cat), y=count))+
   geom_boxplot()
 
 levels(data$count_cat)[c(1,2,3,4,5)] <- c("Banyak", "Sedikit", "Sangat Sedikit", "Sedang", "Sangat Banyak")
@@ -195,6 +195,67 @@ names(lda.pred)
 (tab <- table(lda.pred$class, test.out))
 accuracy(tab)
 ```
+```{r}
+##Support Vector Machine
+library(e1071)
+#Linear SVM
+svmfit = svm(count_cat ~ ., data = train.lengkap, kernel = "linear", cost = 5, 
+scale = FALSE, type="C-classification")
+print(svmfit)
+svml.pred <- predict(svmfit,test)
+tab <- table(svml.pred, test.out)
+tab
+accuracy(tab)
+#plot(svmfit, train.lengkap)
+```
+
+```{r}
+#Non-linear SVM, kernel = radial / polynomial
+svmfit1 = svm(count_cat ~ ., data = train.lengkap, scale = FALSE, kernel = 
+"radial", cost = 10, type="C-classification")
+print(svmfit)
+svml.pred <- predict(svmfit1, test)
+tab <- table(svml.pred, test.out)
+tab
+accuracy(tab)
+```
+
+```{r}
+#Tuning SVM
+set.seed(12)
+train.lengkap$count_cat <- as.factor(train.lengkap$count_cat)
+tuning <- tune(svm, count_cat ~ ., data = train.lengkap,kernel="linear",ranges
+=list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100)), type="C-classification")
+bestmod =tuning$best.model
+print(bestmod)
+svrbest.pred <- predict(bestmod,test)
+cbind(svrbest.pred,test.out)
+mean(svrbest.pred == test.out)
+```
+
+```{r}
+#Decision Tree
+library(rpart)
+tm <- rpart(count_cat~., train.lengkap, method = "class")
+library(rpart.plot)
+rpart.plot(tm, tweak = 1.6)
+dc.pred <- predict(tm, test.lengkap, type = "class")
+(tab <- table(test.lengkap$count_cat, dc.pred))
+accuracy(tab)
+```
+```{r}
+library(randomForest)
+randFo1 = randomForest(x = train,y = train.out, ntree = 500, mtry = 6, 
+nPerm = 4, nodesize = 5, importance = TRUE)
+rf.pred <- predict(randFo1, test.lengkap, type="class")
+(tab <- table(test.lengkap$count_cat, rf.pred))
+accuracy(tab)
+```
+
+
+
+
+
 
 
 
