@@ -53,8 +53,8 @@ data <- add_column(data, month=month, .after="day")
 data <- add_column(data, year=year, .after="month")
 data <- add_column(data, hour=hour, .after="year")
 
-#data$month <- as.factor(data$month)
-#data$year <- as.factor(data$year)
+data$month <- as.factor(data$month)
+data$year <- as.factor(data$year)
 ```
 
 ```{r}

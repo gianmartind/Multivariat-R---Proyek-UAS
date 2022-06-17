@@ -1,0 +1,238 @@
+---
+title: "main3"
+output: html_document
+date: '2022-06-16'
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+```{r load dataset}
+data <- read.csv('bike_sharing.csv')
+```
+
+```{r}
+data <- data %>% 
+  mutate(count_cat = cut(
+    count, 
+    breaks=c(0, 32, 107, 196, 331, 1000),
+    labels=c("Sangat Sedikit", "Sedikit", "Sedang", "Banyak", "Sangat Banyak")))
+
+ggplot(data, aes(x=count_cat))+
+  geom_bar()
+```
+
+```{r split datetime column}
+library(lubridate)
+day <- day(dmy_hm(data$datetime))
+month <- month(dmy_hm(data$datetime))
+year <- year(dmy_hm(data$datetime))
+hour <- hour(dmy_hm(data$datetime))
+
+library(tibble)
+data <- add_column(data, day=day, .after="datetime")
+data <- add_column(data, month=month, .after="day")
+data <- add_column(data, year=year, .after="month")
+data <- add_column(data, hour=hour, .after="year")
+
+data$month <- as.factor(data$month)
+data$year <- as.factor(data$year)
+```
+
+```{r rename categorical columns}
+data$season <- as.factor(data$season)
+levels(data$season)[c(1,2,3,4)] <- c("winter", "spring", "summer", "fall")
+
+data$weather <- as.factor(data$weather)
+levels(data$weather)[c(1,2,3,4)] <- c("good", "normal", "bad", "very bad")
+
+data$workingday <- ifelse(data$workingday==1, "yes", "no")
+data$workingday <- as.factor(data$workingday)
+
+data$holiday <- ifelse(data$holiday==1, "yes", "no")
+data$holiday <- as.factor(data$holiday)
+```
+
+```{r}
+library(car)
+
+reg_model <- lm(count ~ ., data=data[,-c(1, 15)])
+vif(reg_model)
+```
+
+```{r dummy variables for categorical columns}
+cat_columns <- c("season", "holiday", "workingday", "weather")
+
+library(fastDummies)
+data <- dummy_cols(data, select_columns = cat_columns)
+```
+
+```{r numerical columns}
+num_columns <- c("hour", "atemp", "humidity", "windspeed")
+```
+
+# Pemodelan
+
+```{r data for model}
+#dummy columns
+data_dummy_var <- data[,16:27] 
+#numerical columns
+data_num_col <- data[,num_columns]
+
+#combine the two df
+data_model <- cbind(data_dummy_var, data_num_col)
+#add label
+data_model$count_cat <- data$count_cat
+```
+
+```{r normalize & accuracy function}
+normalize <- function(x){
+ (x-min(x))/(max(x)-min(x))
+}
+
+accuracy <- function(x){
+ sum(diag(x)/(sum(rowSums(x))))*100
+ }
+```
+
+```{r normalize numerical columns}
+data_model[colnames(data_num_col)] <- as.data.frame(lapply(data_model[colnames(data_num_col)], normalize))
+```
+
+```{r split train and test}
+train_ratio <- 0.8
+
+set.seed(12)
+shuffled_data_model <- data_model[sample(1:nrow(data_model)),]
+n_row <- nrow(shuffled_data_model)
+n_col <- ncol(shuffled_data_model)
+
+cut_row <- as.integer(train_ratio * nrow(shuffled_data_model))
+
+train <- shuffled_data_model[1:cut_row,]
+test <- shuffled_data_model[(cut_row+1):n_row,]
+
+train_features <- train[,1:n_col-1]
+test_features <- test[,1:n_col-1]
+
+train_out <- train[,n_col]
+test_out <- test[,n_col]
+```
+
+```{r train and test num only}
+train_num <- train[,append(colnames(data_num_col), colnames(train)[ncol(train)])]
+test_num <- test[,append(colnames(data_num_col), colnames(test)[ncol(test)])]
+
+train_features_num <- train_num[,1:ncol(train_num)-1]
+test_features_num <- test_num[,1:ncol(test_num)-1]
+```
+
+```{r train and test cat only}
+train_cat <- train[,append(colnames(data_dummy_var), colnames(train)[ncol(train)])]
+test_cat <- test[,append(colnames(data_dummy_var), colnames(test)[ncol(test)])]
+
+train_features_cat <- train_cat[,1:ncol(train_cat)-1]
+test_features_cat <- test_cat[,1:ncol(test_cat)-1]
+```
+
+### kNN
+```{r kNN from k=1 to 50}
+library(class)
+set.seed(12)
+
+accs <- c()
+
+#with numerical columns only
+for(i in 1:50){
+  knn.pred <- knn(train_features, test_features, cl=train_out, k=i)
+  #Confusion Matrix
+  tab <- table(knn.pred, test_out)
+  
+  accs <- append(accs, accuracy(tab))
+}
+```
+
+```{r plot accuracy for each k}
+#num only not normalized
+num_k <- c(1:50)
+k_accs <- data.frame(num_k, accs)
+
+max_k <- which.max(accs)
+max_str <- sprintf("k=%s \n acc=%.2f", max_k, accs[max_k])
+
+ggplot(k_accs, aes(x=num_k, y=accs))+
+  geom_line()+
+  geom_point(aes(x=max_k, y=accs[max_k]), colour="red")+
+  annotate(geom="text", label=max_str, x=max_k, y=accs[max_k]-0.3)
+```
+### LDA
+```{r}
+library(MASS)
+lda <- lda(count_cat~., data = train)
+lda_pred <- predict(lda, test)
+
+tab <- table(lda_pred$class, test_out)
+accuracy(tab)
+```
+
+### SVM
+```{r}
+library(e1071)
+
+#Linear SVM
+svm_linear = svm(count_cat ~ ., data = train, kernel = "linear", cost = 10, 
+scale = FALSE, type="C-classification")
+svm_linear_pred <- predict(svm_linear, test)
+tab <- table(svm_linear_pred, test_out)
+tab
+accuracy(tab)
+```
+
+```{r}
+#Non-linear SVM, kernel = radial / polynomial
+svm_radial = svm(count_cat ~ ., data = train, scale = FALSE, kernel = 
+"radial", cost = 10, type="C-classification")
+svm_radial_pred <- predict(svm_radial, test)
+tab <- table(svm_radial_pred, test_out)
+tab
+accuracy(tab)
+```
+```{r}
+#Non-linear SVM, kernel = radial / polynomial
+svm_poly = svm(count_cat ~ ., data = train, scale = FALSE, kernel = 
+"polynomial", cost = 10, type="C-classification")
+svm_poly_pred <- predict(svm_poly, test)
+tab <- table(svm_poly_pred, test_out)
+tab
+accuracy(tab)
+```
+
+### Decision Tree
+```{r}
+#Decision Tree
+library(rpart)
+tm <- rpart(count_cat~., train, method = "class")
+
+library(rpart.plot)
+rpart.plot(tm, tweak = 1.6)
+dc.pred <- predict(tm, test, type = "class")
+(tab <- table(test_out, dc.pred))
+accuracy(tab)
+```
+
+```{r}
+#Random Forest
+library(randomForest)
+randFo1 = randomForest(x = train_features,y = train_out, ntree = 500, mtry = 6, 
+nPerm = 4, nodesize = 5, importance = TRUE)
+rf.pred <- predict(randFo1, test, type="class")
+(tab <- table(test_out, rf.pred))
+accuracy(tab)
+```
+
+
+
+
+
