@@ -1,0 +1,74 @@
+---
+title: "eksplorasi"
+output: html_document
+date: '2022-06-20'
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+data <- read.csv('bike_sharing.csv')
+```
+
+```{r}
+library(lubridate)
+day <- day(dmy_hm(data$datetime))
+month <- month(dmy_hm(data$datetime))
+year <- year(dmy_hm(data$datetime))
+hour <- hour(dmy_hm(data$datetime))
+
+library(tibble)
+data <- add_column(data, day=day, .after="datetime")
+data <- add_column(data, month=month, .after="day")
+data <- add_column(data, year=year, .after="month")
+data <- add_column(data, hour=hour, .after="year")
+
+data$month <- as.factor(data$month)
+data$year <- as.factor(data$year)
+```
+
+```{r}
+data$season <- as.factor(data$season)
+levels(data$season)[c(1,2,3,4)] <- c("winter", "spring", "summer", "fall")
+
+data$weather <- as.factor(data$weather)
+levels(data$weather)[c(1, 2, 3, 4)] <- c("good", "normal", "bad", "very bad")
+
+data$workingday <- ifelse(data$workingday==1, "yes", "no")
+data$workingday <- as.factor(data$workingday)
+
+data$holiday <- ifelse(data$holiday==1, "yes", "no")
+data$holiday <- as.factor(data$holiday)
+```
+
+```{r}
+#korelasi kolom kategorikal dengan count
+cat_columns = c("month", "season", "holiday", "workingday", "weather")
+
+for(col in cat_columns){
+  print(summary(aov(data[,"count"] ~ data[,col])))
+}
+```
+
+```{r}
+#korelasi kolom numerik dengan count
+num_columns <- c("hour", "temp", "atemp", "humidity", "windspeed")
+for(col in num_columns){
+  print(paste(col, cor(data[,col], data[,"count"]), sep = " "))
+}
+```
+
+```{r}
+#plot kolom numerik dengan count
+num_columns <- c("hour", "temp", "atemp", "humidity", "windspeed")
+
+for(col in num_columns){
+  plot <- ggplot(data, aes_string(x=col, y="count"))+
+    geom_point()
+  
+  print(plot)
+}
+```

@@ -1,7 +1,7 @@
 ---
-title: "main2"
+title: "reg2"
 output: html_document
-date: '2022-06-16'
+date: '2022-06-20'
 ---
 
 ```{r}
@@ -13,17 +13,27 @@ library(ggplot2)
 data <- read.csv('bike_sharing.csv')
 ```
 
-```{r}
-data <- data %>% 
-  mutate(count_cat = cut(
-    count, 
-    breaks=c(0, 200, 400, 600, 800, 1000),
-    labels=c("Sangat Sedikit", "Sedikit", "Sedang", "Banyak", "Sangat Banyak")))
+```{r create label}
+#label dilakukan menggunakan K-Means dengan jumlah cluster=5
+
+library(ClusterR)
+library(cluster)
+
+set.seed(12)
+kmeans.cluster <- kmeans(data$count, centers=5)
+data$count_cat <- kmeans.cluster$cluster
+```
+
+```{r rename label}
+#Ubah nama label menjadi string
+ggplot(data, aes(x=as.factor(count_cat), y=count))+
+  geom_boxplot()
 
 ggplot(data, aes(x=count_cat))+
-  geom_bar()+
-  xlab("Kategori")+
-  ylab("Jumlah")
+  geom_bar()
+
+data$count_cat <- as.factor(data$count_cat)
+levels(data$count_cat)[c(1,2,3,4,5)] <- c("Banyak", "Sedikit", "Sangat Sedikit", "Sedang", "Sangat Banyak")
 ```
 
 ```{r split datetime column}
@@ -64,6 +74,7 @@ reg_model <- lm(count ~ ., data=data[,-c(1, 15)])
 vif(reg_model)
 ```
 
+
 ```{r dummy variables for categorical columns}
 cat_columns <- c("season", "holiday", "workingday", "weather")
 
@@ -95,6 +106,8 @@ normalize <- function(x){
 }
 
 accuracy <- function(x){
+  print(sum(diag(x)))
+  print(sum(rowSums(x)))
   sum(diag(x)/(sum(rowSums(x))))*100
  }
 ```
@@ -146,6 +159,7 @@ set.seed(12)
 
 accs <- c()
 
+#with numerical columns only
 for(i in 1:50){
   knn.pred <- knn(train_features, test_features, cl=train_out, k=i)
   #Confusion Matrix
@@ -156,6 +170,7 @@ for(i in 1:50){
 ```
 
 ```{r plot accuracy for each k}
+#num only not normalized
 num_k <- c(1:50)
 k_accs <- data.frame(num_k, accs)
 
@@ -199,7 +214,6 @@ tab <- table(svm_radial_pred, test_out)
 tab
 accuracy(tab)
 ```
-
 ```{r}
 #Non-linear SVM, kernel = radial / polynomial
 svm_poly = svm(count_cat ~ ., data = train, scale = FALSE, kernel = 
@@ -226,7 +240,7 @@ accuracy(tab)
 ```{r}
 #Random Forest
 library(randomForest)
-randFo1 = randomForest(x = train_features, y = train_out, ntree = 500, mtry = 6, 
+randFo1 = randomForest(x = train_features,y = train_out, ntree = 500, mtry = 6, 
 nPerm = 4, nodesize = 5, importance = TRUE)
 rf.pred <- predict(randFo1, test, type="class")
 (tab <- table(test_out, rf.pred))

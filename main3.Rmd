@@ -21,7 +21,9 @@ data <- data %>%
     labels=c("Sangat Sedikit", "Sedikit", "Sedang", "Banyak", "Sangat Banyak")))
 
 ggplot(data, aes(x=count_cat))+
-  geom_bar()
+  geom_bar()+
+  xlab("Kategori")+
+  ylab("Jumlah")
 ```
 
 ```{r split datetime column}

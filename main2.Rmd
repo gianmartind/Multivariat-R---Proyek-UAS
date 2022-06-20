@@ -27,10 +27,14 @@ data$count_cat <- kmeans.cluster$cluster
 ```{r rename label}
 #Ubah nama label menjadi string
 ggplot(data, aes(x=as.factor(count_cat), y=count))+
-  geom_boxplot()
+  geom_boxplot()+
+  xlab("No. Cluster")+
+  ylab("Rentang Nilai")
 
 ggplot(data, aes(x=count_cat))+
-  geom_bar()
+  geom_bar()+
+  xlab("Kategori")+
+  ylab("Jumlah")
 
 data$count_cat <- as.factor(data$count_cat)
 levels(data$count_cat)[c(1,2,3,4,5)] <- c("Banyak", "Sedikit", "Sangat Sedikit", "Sedang", "Sangat Banyak")
@@ -106,8 +110,6 @@ normalize <- function(x){
 }
 
 accuracy <- function(x){
-  print(sum(diag(x)))
-  print(sum(rowSums(x)))
   sum(diag(x)/(sum(rowSums(x))))*100
  }
 ```
@@ -159,7 +161,6 @@ set.seed(12)
 
 accs <- c()
 
-#with numerical columns only
 for(i in 1:50){
   knn.pred <- knn(train_features, test_features, cl=train_out, k=i)
   #Confusion Matrix
@@ -170,7 +171,6 @@ for(i in 1:50){
 ```
 
 ```{r plot accuracy for each k}
-#num only not normalized
 num_k <- c(1:50)
 k_accs <- data.frame(num_k, accs)
 
@@ -240,7 +240,7 @@ accuracy(tab)
 ```{r}
 #Random Forest
 library(randomForest)
-randFo1 = randomForest(x = train_features,y = train_out, ntree = 500, mtry = 6, 
+randFo1 = randomForest(x = train_features, y = train_out, ntree = 500, mtry = 6, 
 nPerm = 4, nodesize = 5, importance = TRUE)
 rf.pred <- predict(randFo1, test, type="class")
 (tab <- table(test_out, rf.pred))
