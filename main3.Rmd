@@ -72,7 +72,7 @@ data <- dummy_cols(data, select_columns = cat_columns)
 ```
 
 ```{r numerical columns}
-num_columns <- c("hour", "atemp", "humidity", "windspeed")
+num_columns <- c("day", "hour", "atemp", "humidity", "windspeed")
 ```
 
 # Pemodelan
